@@ -339,6 +339,10 @@ func (p *parser) extractObject(isSubObject ...bool) (Object, error) {
 			}
 		}
 
+		if p.scanner.TokenText() == commentToken {
+			p.consumeComment()
+		}
+
 		if p.scanner.Line == lastRow &&
 			p.scanner.TokenText() != commaToken &&
 			p.scanner.TokenText() != objectEndToken &&
