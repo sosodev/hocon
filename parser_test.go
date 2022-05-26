@@ -37,6 +37,11 @@ func TestParseResource(t *testing.T) {
 		assertNoError(t, err)
 		assertDeepEqual(t, got, &Config{Array{Int(1), Int(2), Int(3)}})
 	})
+
+	t.Run("parse comment-after-value.conf with no error", func(t *testing.T) {
+		_, err := ParseResource("testdata/comment-after-value.conf")
+		assertNoError(t, err)
+	})
 }
 
 func TestParse(t *testing.T) {
