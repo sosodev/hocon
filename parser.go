@@ -35,6 +35,7 @@ type parser struct {
 	scanner                 *scanner.Scanner
 	currentRune             rune
 	lastConsumedWhitespaces string // used in concatenation not to lose whitespaces between values
+	resolveSubstitutions    bool
 }
 
 func newParser(src io.Reader) *parser {
@@ -46,25 +47,32 @@ func newParser(src io.Reader) *parser {
 		return ch == '_' || ch == '-' || unicode.IsLetter(ch) || unicode.IsDigit(ch) && i > 0
 	}
 
-	return &parser{scanner: s}
+	return &parser{scanner: s, resolveSubstitutions: true}
 }
 
 // ParseString function parses the given hocon string, creates the configuration tree and
 // returns a pointer to the Config, returns a ParseError if any error occurs while parsing
-func ParseString(input string) (*Config, error) {
+// passing a false resolveSubstitutions value will leave substitutions unresolved and unvalidated
+func ParseString(input string, resolveSubstitutions bool) (*Config, error) {
 	parser := newParser(strings.NewReader(input))
-	return parser.parse()
+	return parser.setResolveSubstitutions(resolveSubstitutions).parse()
 }
 
 // ParseResource parses the resource at the given path, creates the configuration tree and
 // returns a pointer to the Config, returns the error if any error occurs while parsing
-func ParseResource(path string) (*Config, error) {
+// passing a false resolveSubstitutions value will leave substitutions unresolved and unvalidated
+func ParseResource(path string, resolveSubstitutions bool) (*Config, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse resource: %w", err)
 	}
 
-	return newParser(file).parse()
+	return newParser(file).setResolveSubstitutions(resolveSubstitutions).parse()
+}
+
+func (p *parser) setResolveSubstitutions(resolveSubstitutions bool) *parser {
+	p.resolveSubstitutions = resolveSubstitutions
+	return p
 }
 
 func (p *parser) parse() (*Config, error) {
@@ -88,9 +96,11 @@ func (p *parser) parse() (*Config, error) {
 		return nil, invalidObjectError("invalid token "+token, p.scanner.Line, p.scanner.Column)
 	}
 
-	err = resolveSubstitutions(object)
-	if err != nil {
-		return nil, err
+	if p.resolveSubstitutions {
+		err = resolveSubstitutions(object)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &Config{root: object}, nil

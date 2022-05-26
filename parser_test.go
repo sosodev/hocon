@@ -12,13 +12,13 @@ import (
 
 func TestParseString(t *testing.T) {
 	t.Run("parse the string and return a pointer to the Config", func(t *testing.T) {
-		got, err := ParseString("{a:1}")
+		got, err := ParseString("{a:1}", true)
 		assertNoError(t, err)
 		assertDeepEqual(t, got, &Config{Object{"a": Int(1)}})
 	})
 
 	t.Run("return the error if any error occurs in the parse() method", func(t *testing.T) {
-		got, err := ParseString("{.a:1}")
+		got, err := ParseString("{.a:1}", true)
 		assertError(t, err, leadingPeriodError(1, 2))
 		assertNil(t, got)
 	})
@@ -26,20 +26,20 @@ func TestParseString(t *testing.T) {
 
 func TestParseResource(t *testing.T) {
 	t.Run("return error if there is an error in the os.Open(path) method", func(t *testing.T) {
-		got, err := ParseResource("nonExistPath")
+		got, err := ParseResource("nonExistPath", true)
 		expectedError := fmt.Errorf("could not parse resource: open nonExistPath: no such file or directory")
 		assertError(t, err, expectedError)
 		assertNil(t, got)
 	})
 
 	t.Run("parse and return a pointer to the config if there is no error", func(t *testing.T) {
-		got, err := ParseResource("testdata/array.conf")
+		got, err := ParseResource("testdata/array.conf", true)
 		assertNoError(t, err)
 		assertDeepEqual(t, got, &Config{Array{Int(1), Int(2), Int(3)}})
 	})
 
 	t.Run("parse comment-after-value.conf with no error", func(t *testing.T) {
-		_, err := ParseResource("testdata/comment-after-value.conf")
+		_, err := ParseResource("testdata/comment-after-value.conf", true)
 		assertNoError(t, err)
 	})
 }
