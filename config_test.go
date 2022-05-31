@@ -470,3 +470,50 @@ func TestContainsObject(t *testing.T) {
 		assertEquals(t, got, true)
 	})
 }
+
+func TestForEach(t *testing.T) {
+	c := Config{Object{"hello": String("world"), "nested": Object{"deeper": Object{"cool": String("yeah")}}}}
+	expectedKeys := []string{"hello", "nested", "nested.deeper", "nested.deeper.cool"}
+
+	c.ForEach(func(key string, value Value) {
+		matchesExpectations := false
+		for _, expectedKey := range expectedKeys {
+			if key == expectedKey {
+				matchesExpectations = true
+			}
+		}
+
+		if !matchesExpectations {
+			t.Errorf("unexpected key in ForEach: %s", key)
+		}
+	})
+}
+
+func TestDiff(t *testing.T) {
+	c := Config{Object{"hello": String("world"), "nested": Object{"deeper": Object{"cool": String("yeah")}}}}
+	c2 := Config{Object{"hello": String("world"), "nested": Object{"deeper": Object{"cool": String("yeah")}}}}
+	c3 := Config{Object{"hello": String("world"), "nested": Object{"deeper": Object{"cool": String("nah")}}}}
+
+	differencesFound := false
+	c.Diff(&c2, func(key string, original Value, modified Value) {
+		differencesFound = true
+	})
+
+	if differencesFound {
+		t.Error("c and c2 should not have any differences")
+	}
+
+	c.Diff(&c3, func(key string, original Value, modified Value) {
+		if key != "nested.deeper.cool" {
+			t.Error("unexpected difference between c and c3")
+		} else {
+			if original.String() != "yeah" {
+				t.Errorf("expected original value %s got %s", "yeah", original.String())
+			}
+
+			if modified.String() != "nah" {
+				t.Errorf("expected modified value %s got %s", "nah", modified.String())
+			}
+		}
+	})
+}

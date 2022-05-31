@@ -29,6 +29,38 @@ type Config struct {
 	root Value
 }
 
+// ForEach iterates through the config tree and calls the given callback with each key and value
+func (c *Config) ForEach(callback func(key string, value Value)) {
+	iterate(c.root, callback, "")
+}
+
+// Diff compares the config with the given comparison config
+// the difference callback is called whenever a difference is found
+// object values are skipped since they're the basis of iteration
+func (c *Config) Diff(comparison *Config, difference func(key string, original Value, modified Value)) {
+	c.ForEach(func(key string, original Value) {
+		if original.Type() == ObjectType {
+			return
+		}
+
+		modified := comparison.Get(key)
+
+		if modified.String() != original.String() {
+			difference(key, original, modified)
+		}
+	})
+}
+
+func iterate(thing Value, callback func(key string, value Value), prefix string) {
+	switch thing.Type() {
+	case ObjectType:
+		for key, value := range thing.(Object) {
+			callback(prefix+key, value)
+			iterate(value, callback, prefix+key+".")
+		}
+	}
+}
+
 // String method returns the string representation of the Config object
 func (c *Config) String() string { return c.root.String() }
 
