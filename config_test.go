@@ -517,3 +517,15 @@ func TestDiff(t *testing.T) {
 		}
 	})
 }
+
+func TestMerge(t *testing.T) {
+	c := &Config{Object{"a": String("3"), "b": String("3"), "nested": Object{"thing": Boolean(true), "yeah": Int(1)}}}
+	c1 := &Config{Object{"b": String("4"), "c": String("5"), "nested": Object{"thing": Boolean(false)}}}
+
+	c.Merge(c1)
+	assertEquals(t, c.Get("a"), String("3"))
+	assertEquals(t, c.Get("b"), String("4"))
+	assertEquals(t, c.Get("c"), String("5"))
+	assertEquals(t, c.Get("nested.thing"), Boolean(false))
+	assertEquals(t, c.Get("nested.yeah"), Int(1))
+}

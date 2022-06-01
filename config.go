@@ -51,6 +51,13 @@ func (c *Config) Diff(comparison *Config, difference func(key string, original V
 	})
 }
 
+// Merge with the given *Config
+func (c *Config) Merge(config *Config) {
+	if c.root.Type() == ObjectType && config.root.Type() == ObjectType {
+		mergeObjects(c.root.(Object), config.root.(Object))
+	}
+}
+
 func iterate(thing Value, callback func(key string, value Value), prefix string) {
 	switch thing.Type() {
 	case ObjectType:
