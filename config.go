@@ -454,6 +454,7 @@ type Float64 float64
 // Type Number
 func (f Float64) Type() Type           { return NumberType }
 func (f Float64) String() string       { return strconv.FormatFloat(float64(f), 'e', -1, 64) }
+func (f Float64) SimpleString() string { return strconv.FormatFloat(float64(f), 'f', -1, 64) }
 func (f Float64) isConcatenable() bool { return false }
 
 // Boolean represents bool value

@@ -353,6 +353,19 @@ func (p *parser) extractObject(isSubObject ...bool) (Object, error) {
 			p.consumeComment()
 		}
 
+		// convert x=40.megabytes to x="40 megabytes"
+		// perhaps this should be converted to an actual bytes value but I need a quicker fix right now
+		if strings.HasSuffix(p.scanner.TokenText(), "byte") || strings.HasSuffix(p.scanner.TokenText(), "bytes") {
+			value, ok := object[key]
+			if ok {
+				switch value.(type) {
+				case Float64:
+					object[key] = String(value.(Float64).SimpleString() + " " + p.scanner.TokenText())
+					p.consumeComment()
+				}
+			}
+		}
+
 		if p.scanner.Line == lastRow &&
 			p.scanner.TokenText() != commaToken &&
 			p.scanner.TokenText() != objectEndToken &&

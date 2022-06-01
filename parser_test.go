@@ -42,6 +42,16 @@ func TestParseResource(t *testing.T) {
 		_, err := ParseResource("testdata/comment-after-value.conf", true)
 		assertNoError(t, err)
 	})
+
+	t.Run("parse sizes.conf with no error", func(t *testing.T) {
+		sizes, err := ParseResource("testdata/sizes.conf", true)
+		assertNoError(t, err)
+		assertEquals(t, sizes.Get("sizes.maxResponseSize"), String("40 megabytes"))
+		assertEquals(t, sizes.Get("sizes.byte"), String("1 byte"))
+		assertEquals(t, sizes.Get("sizes.normal"), String("value"))
+		assertEquals(t, sizes.Get("sizes.odd"), String("value"))
+		assertEquals(t, sizes.Get("sizes.strange"), String("value"))
+	})
 }
 
 func TestParse(t *testing.T) {
