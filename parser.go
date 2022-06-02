@@ -36,7 +36,12 @@ type parser struct {
 	currentRune             rune
 	lastConsumedWhitespaces string // used in concatenation not to lose whitespaces between values
 	resolveSubstitutions    bool
+	keyLineNumbers          map[string]int
 }
+
+var (
+	configKeyLineNumbers = make(map[*Config]map[string]int)
+)
 
 func newParser(src io.Reader) *parser {
 	s := new(scanner.Scanner)
@@ -47,7 +52,7 @@ func newParser(src io.Reader) *parser {
 		return ch == '_' || ch == '-' || unicode.IsLetter(ch) || unicode.IsDigit(ch) && i > 0
 	}
 
-	return &parser{scanner: s, resolveSubstitutions: true}
+	return &parser{scanner: s, resolveSubstitutions: true, keyLineNumbers: make(map[string]int)}
 }
 
 // ParseString function parses the given hocon string, creates the configuration tree and
@@ -87,7 +92,7 @@ func (p *parser) parse() (*Config, error) {
 		return &Config{root: array}, nil
 	}
 
-	object, err := p.extractObject()
+	object, err := p.extractObject(false, "")
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +108,9 @@ func (p *parser) parse() (*Config, error) {
 		}
 	}
 
-	return &Config{root: object}, nil
+	config := &Config{root: object}
+	configKeyLineNumbers[config] = p.keyLineNumbers
+	return config, nil
 }
 
 func (p *parser) advance() {
@@ -211,7 +218,7 @@ func processSubstitutionType(root Object, substitution *Substitution) (Value, er
 	return nil, nil
 }
 
-func (p *parser) extractObject(isSubObject ...bool) (Object, error) {
+func (p *parser) extractObject(isSubObject bool, baseKey string) (Object, error) {
 	object := Object{}
 	parenthesisBalanced := true
 
@@ -257,6 +264,13 @@ func (p *parser) extractObject(isSubObject ...bool) (Object, error) {
 			return nil, leadingPeriodError(p.scanner.Line, p.scanner.Column)
 		}
 
+		fullKey := ""
+		if len(baseKey) != 0 {
+			fullKey = baseKey + "." + key
+		} else {
+			fullKey = key
+		}
+
 		p.advance()
 		text := p.scanner.TokenText()
 
@@ -275,7 +289,7 @@ func (p *parser) extractObject(isSubObject ...bool) (Object, error) {
 
 			lastRow = p.scanner.Line
 
-			extractedObject, err := p.extractObject(true)
+			extractedObject, err := p.extractObject(true, fullKey)
 			if err != nil {
 				return nil, err
 			}
@@ -321,6 +335,7 @@ func (p *parser) extractObject(isSubObject ...bool) (Object, error) {
 				}
 			}
 
+			p.keyLineNumbers[fullKey] = lastRow
 			object[key] = value
 		case "+":
 			if p.scanner.Peek() == '=' {
@@ -334,7 +349,7 @@ func (p *parser) extractObject(isSubObject ...bool) (Object, error) {
 			}
 		}
 
-		if parenthesisBalanced && len(isSubObject) > 0 && isSubObject[0] {
+		if parenthesisBalanced && isSubObject {
 			return object, nil
 		}
 
@@ -360,6 +375,7 @@ func (p *parser) extractObject(isSubObject ...bool) (Object, error) {
 			if ok {
 				switch value.(type) {
 				case Float64:
+					p.keyLineNumbers[fullKey] = lastRow
 					object[key] = String(value.(Float64).SimpleString() + " " + p.scanner.TokenText())
 					p.consumeComment()
 				}
@@ -513,7 +529,7 @@ func (p *parser) parseIncludedResource() (includeObject Object, err error) {
 		return nil, invalidValueError("included file cannot contain an array as the root value", p.scanner.Line, p.scanner.Column)
 	}
 
-	return includeParser.extractObject()
+	return includeParser.extractObject(false, "")
 }
 
 func (p *parser) checkAndConcatenate(object Object, key string) (bool, error) {
@@ -657,7 +673,7 @@ func (p *parser) extractValue() (Value, error) {
 	default:
 		switch {
 		case token == objectStartToken:
-			return p.extractObject()
+			return p.extractObject(false, "")
 		case token == arrayStartToken:
 			return p.extractArray()
 		case isSubstitution(token, p.scanner.Peek()):

@@ -58,6 +58,18 @@ func (c *Config) Merge(config *Config) {
 	}
 }
 
+// LineNumberForKey returns the line number in the conf file for the given key
+// and a bool indicating if the key was found
+func (c *Config) LineNumberForKey(key string) (int, bool) {
+	lineNumbers, ok := configKeyLineNumbers[c]
+	if !ok {
+		return -1, false
+	}
+
+	lineNumber, ok := lineNumbers[key]
+	return lineNumber, ok
+}
+
 func iterate(thing Value, callback func(key string, value Value), prefix string) {
 	switch thing.Type() {
 	case ObjectType:

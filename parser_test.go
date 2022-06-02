@@ -52,6 +52,23 @@ func TestParseResource(t *testing.T) {
 		assertEquals(t, sizes.Get("sizes.odd"), String("value"))
 		assertEquals(t, sizes.Get("sizes.strange"), String("value"))
 	})
+
+	t.Run("parse nested-objects.conf with correct line numbers for keys", func(t *testing.T) {
+		nestedObjectsConfig, err := ParseResource("testdata/nested-objects.conf", true)
+		assertNoError(t, err)
+
+		lineNo, ok := nestedObjectsConfig.LineNumberForKey("nested.objects.have")
+		assertEquals(t, ok, true)
+		assertEquals(t, lineNo, 3)
+
+		lineNo, ok = nestedObjectsConfig.LineNumberForKey("nested.lessNested")
+		assertEquals(t, ok, true)
+		assertEquals(t, lineNo, 6)
+
+		lineNo, ok = nestedObjectsConfig.LineNumberForKey("nested.yes.me")
+		assertEquals(t, ok, true)
+		assertEquals(t, lineNo, 9)
+	})
 }
 
 func TestParse(t *testing.T) {
@@ -157,7 +174,7 @@ func TestExtractObject(t *testing.T) {
 	t.Run("extract empty object", func(t *testing.T) {
 		parser := newParser(strings.NewReader("{}"))
 		parser.advance() // move scanner to the first token for the test case
-		got, err := parser.extractObject()
+		got, err := parser.extractObject(false, "")
 		assertNoError(t, err)
 		assertDeepEqual(t, got, Object{})
 	})
@@ -165,7 +182,7 @@ func TestExtractObject(t *testing.T) {
 	t.Run("extract object with the root braces omitted", func(t *testing.T) {
 		parser := newParser(strings.NewReader("a=1"))
 		parser.advance()
-		got, err := parser.extractObject()
+		got, err := parser.extractObject(false, "")
 		assertNoError(t, err)
 		assertDeepEqual(t, got, Object{"a": Int(1)})
 	})
@@ -173,7 +190,7 @@ func TestExtractObject(t *testing.T) {
 	t.Run("extract simple object", func(t *testing.T) {
 		parser := newParser(strings.NewReader("{a=1}"))
 		parser.advance()
-		got, err := parser.extractObject()
+		got, err := parser.extractObject(false, "")
 		assertNoError(t, err)
 		assertDeepEqual(t, got, Object{"a": Int(1)})
 	})
@@ -181,7 +198,7 @@ func TestExtractObject(t *testing.T) {
 	t.Run("extract nested object", func(t *testing.T) {
 		parser := newParser(strings.NewReader("{a.b:1,c:2}"))
 		parser.advance()
-		got, err := parser.extractObject()
+		got, err := parser.extractObject(false, "")
 		assertNoError(t, err)
 		assertDeepEqual(t, got, Object{"a": Object{"b": Int(1)}, "c": Int(2)})
 	})
@@ -194,7 +211,7 @@ func TestExtractObject(t *testing.T) {
 		`
 		parser := newParser(strings.NewReader(config))
 		parser.advance()
-		got, err := parser.extractObject()
+		got, err := parser.extractObject(false, "")
 		assertNoError(t, err)
 		assertDeepEqual(t, got, Object{"a": Int(1)})
 	})
@@ -203,7 +220,7 @@ func TestExtractObject(t *testing.T) {
 		parser := newParser(strings.NewReader(`{include "testdata/array.conf"}`))
 		parser.advance()
 		expectedErr := invalidValueError("included file cannot contain an array as the root value", 1, 10)
-		got, err := parser.extractObject()
+		got, err := parser.extractObject(false, "")
 		assertError(t, err, expectedErr)
 		assertNil(t, got)
 	})
@@ -212,7 +229,7 @@ func TestExtractObject(t *testing.T) {
 		parser := newParser(strings.NewReader(`b:2, include "testdata/a.conf"`))
 		parser.advance()
 		expected := Object{"a": Int(1), "b": Int(2)}
-		got, err := parser.extractObject()
+		got, err := parser.extractObject(false, "")
 		assertNoError(t, err)
 		assertDeepEqual(t, got, expected)
 	})
@@ -223,7 +240,7 @@ func TestExtractObject(t *testing.T) {
 				parser := newParser(strings.NewReader(fmt.Sprintf("{%s:1}", forbiddenChar)))
 				parser.advance()
 				expectedError := invalidKeyError(forbiddenChar, 1, 2)
-				got, err := parser.extractObject()
+				got, err := parser.extractObject(false, "")
 				assertError(t, err, expectedError)
 				assertNil(t, got)
 			}
@@ -234,7 +251,7 @@ func TestExtractObject(t *testing.T) {
 		parser := newParser(strings.NewReader("{.a:1}"))
 		parser.advance()
 		expectedError := leadingPeriodError(1, 2)
-		got, err := parser.extractObject()
+		got, err := parser.extractObject(false, "")
 		assertError(t, err, expectedError)
 		assertNil(t, got)
 	})
@@ -243,7 +260,7 @@ func TestExtractObject(t *testing.T) {
 		parser := newParser(strings.NewReader("{a..b:1}"))
 		parser.advance()
 		expectedError := adjacentPeriodsError(1, 4)
-		got, err := parser.extractObject()
+		got, err := parser.extractObject(false, "")
 		assertError(t, err, expectedError)
 		assertNil(t, got)
 	})
@@ -252,7 +269,7 @@ func TestExtractObject(t *testing.T) {
 		parser := newParser(strings.NewReader("{a.:1}"))
 		parser.advance()
 		expectedError := trailingPeriodError(1, 3)
-		got, err := parser.extractObject()
+		got, err := parser.extractObject(false, "")
 		assertError(t, err, expectedError)
 		assertNil(t, got)
 	})
@@ -261,7 +278,7 @@ func TestExtractObject(t *testing.T) {
 		parser := newParser(strings.NewReader("{a{.b:1}}"))
 		parser.advance()
 		expectedError := leadingPeriodError(1, 4)
-		got, err := parser.extractObject()
+		got, err := parser.extractObject(false, "")
 		assertError(t, err, expectedError)
 		assertNil(t, got)
 	})
@@ -270,7 +287,7 @@ func TestExtractObject(t *testing.T) {
 		parser := newParser(strings.NewReader("{a.b.:1}"))
 		parser.advance()
 		expectedError := trailingPeriodError(1, 5)
-		got, err := parser.extractObject()
+		got, err := parser.extractObject(false, "")
 		assertError(t, err, expectedError)
 		assertNil(t, got)
 	})
@@ -279,7 +296,7 @@ func TestExtractObject(t *testing.T) {
 		parser := newParser(strings.NewReader("{a=&}"))
 		parser.advance()
 		expectedError := invalidValueError(fmt.Sprintf("unknown value: %q", "&"), 1, 4)
-		got, err := parser.extractObject()
+		got, err := parser.extractObject(false, "")
 		assertError(t, err, expectedError)
 		assertNil(t, got)
 	})
@@ -288,7 +305,7 @@ func TestExtractObject(t *testing.T) {
 		parser := newParser(strings.NewReader("{a={b:1},a={c:2}}"))
 		parser.advance()
 		expected := Object{"a": Object{"b": Int(1), "c": Int(2)}}
-		got, err := parser.extractObject()
+		got, err := parser.extractObject(false, "")
 		assertNoError(t, err)
 		assertDeepEqual(t, got, expected)
 	})
@@ -297,7 +314,7 @@ func TestExtractObject(t *testing.T) {
 		parser := newParser(strings.NewReader("{a=1,a={c:2}}"))
 		parser.advance()
 		expected := Object{"a": Object{"c": Int(2)}}
-		got, err := parser.extractObject()
+		got, err := parser.extractObject(false, "")
 		assertNoError(t, err)
 		assertDeepEqual(t, got, expected)
 	})
@@ -306,7 +323,7 @@ func TestExtractObject(t *testing.T) {
 		parser := newParser(strings.NewReader("{a={b:1},a=2}"))
 		parser.advance()
 		expected := Object{"a": Int(2)}
-		got, err := parser.extractObject()
+		got, err := parser.extractObject(false, "")
 		assertNoError(t, err)
 		assertDeepEqual(t, got, expected)
 	})
@@ -315,7 +332,7 @@ func TestExtractObject(t *testing.T) {
 		parser := newParser(strings.NewReader("{a:&}"))
 		parser.advance()
 		expectedError := invalidValueError(fmt.Sprintf("unknown value: %q", "&"), 1, 4)
-		got, err := parser.extractObject()
+		got, err := parser.extractObject(false, "")
 		assertError(t, err, expectedError)
 		assertNil(t, got)
 	})
@@ -324,7 +341,7 @@ func TestExtractObject(t *testing.T) {
 		parser := newParser(strings.NewReader("{a:{b:1},a:{c:2}}"))
 		parser.advance()
 		expected := Object{"a": Object{"b": Int(1), "c": Int(2)}}
-		got, err := parser.extractObject()
+		got, err := parser.extractObject(false, "")
 		assertNoError(t, err)
 		assertDeepEqual(t, got, expected)
 	})
@@ -337,7 +354,7 @@ func TestExtractObject(t *testing.T) {
 			"b": Int(2),
 			"c": concatenation{&Substitution{path: "a", optional: false}, &Substitution{path: "b", optional: false}},
 		}
-		got, err := parser.extractObject()
+		got, err := parser.extractObject(false, "")
 		assertNoError(t, err)
 		assertDeepEqual(t, got, expected)
 	})
@@ -349,7 +366,7 @@ func TestExtractObject(t *testing.T) {
 			"b": Int(2),
 			"c": concatenation{Object{"a": Int(1)}, &Substitution{path: "b", optional: false}},
 		}
-		got, err := parser.extractObject()
+		got, err := parser.extractObject(false, "")
 		assertNoError(t, err)
 		assertDeepEqual(t, got, expected)
 	})
@@ -361,7 +378,7 @@ func TestExtractObject(t *testing.T) {
 			"a": Int(1),
 			"c": concatenation{&Substitution{path: "a", optional: false}, Object{"b": Int(2)}},
 		}
-		got, err := parser.extractObject()
+		got, err := parser.extractObject(false, "")
 		assertNoError(t, err)
 		assertDeepEqual(t, got, expected)
 	})
@@ -370,7 +387,7 @@ func TestExtractObject(t *testing.T) {
 		parser := newParser(strings.NewReader("{a:1,a:{c:2}}"))
 		parser.advance()
 		expected := Object{"a": Object{"c": Int(2)}}
-		got, err := parser.extractObject()
+		got, err := parser.extractObject(false, "")
 		assertNoError(t, err)
 		assertDeepEqual(t, got, expected)
 	})
@@ -379,7 +396,7 @@ func TestExtractObject(t *testing.T) {
 		parser := newParser(strings.NewReader("{a:{b:1},a:2}"))
 		parser.advance()
 		expected := Object{"a": Int(2)}
-		got, err := parser.extractObject()
+		got, err := parser.extractObject(false, "")
 		assertNoError(t, err)
 		assertDeepEqual(t, got, expected)
 	})
@@ -388,7 +405,7 @@ func TestExtractObject(t *testing.T) {
 		parser := newParser(strings.NewReader("{a{b:1},a{c:2}}"))
 		parser.advance()
 		expected := Object{"a": Object{"b": Int(1), "c": Int(2)}}
-		got, err := parser.extractObject()
+		got, err := parser.extractObject(false, "")
 		assertNoError(t, err)
 		assertDeepEqual(t, got, expected)
 	})
@@ -397,7 +414,7 @@ func TestExtractObject(t *testing.T) {
 		parser := newParser(strings.NewReader("{a=1,a{b:1},a{c:2}}"))
 		parser.advance()
 		expected := Object{"a": Object{"b": Int(1), "c": Int(2)}}
-		got, err := parser.extractObject()
+		got, err := parser.extractObject(false, "")
 		assertNoError(t, err)
 		assertDeepEqual(t, got, expected)
 	})
@@ -406,7 +423,7 @@ func TestExtractObject(t *testing.T) {
 		parser := newParser(strings.NewReader("{a{b:1},a=1,a{c:2}}"))
 		parser.advance()
 		expected := Object{"a": Object{"c": Int(2)}}
-		got, err := parser.extractObject()
+		got, err := parser.extractObject(false, "")
 		assertNoError(t, err)
 		assertDeepEqual(t, got, expected)
 	})
@@ -415,7 +432,7 @@ func TestExtractObject(t *testing.T) {
 		parser := newParser(strings.NewReader("{a{b:1},a{c:2},a=1}"))
 		parser.advance()
 		expected := Object{"a": Int(1)}
-		got, err := parser.extractObject()
+		got, err := parser.extractObject(false, "")
 		assertNoError(t, err)
 		assertDeepEqual(t, got, expected)
 	})
@@ -424,7 +441,7 @@ func TestExtractObject(t *testing.T) {
 		parser := newParser(strings.NewReader("{a:1,a+=2}"))
 		parser.advance()
 		expectedError := invalidValueError(fmt.Sprintf("value: %q of the key: %q is not an array", "1", "a"), 1, 10)
-		got, err := parser.extractObject()
+		got, err := parser.extractObject(false, "")
 		assertError(t, err, expectedError)
 		assertNil(t, got)
 	})
@@ -433,7 +450,7 @@ func TestExtractObject(t *testing.T) {
 		parser := newParser(strings.NewReader("{a+=1}"))
 		parser.advance()
 		expected := Object{"a": Array{Int(1)}}
-		got, err := parser.extractObject()
+		got, err := parser.extractObject(false, "")
 		assertNoError(t, err)
 		assertDeepEqual(t, got, expected)
 	})
@@ -442,7 +459,7 @@ func TestExtractObject(t *testing.T) {
 		parser := newParser(strings.NewReader("{a+1}"))
 		parser.advance()
 		expectedError := invalidKeyError("+", 1, 3)
-		got, err := parser.extractObject()
+		got, err := parser.extractObject(false, "")
 		assertError(t, err, expectedError)
 		assertNil(t, got)
 	})
@@ -450,7 +467,7 @@ func TestExtractObject(t *testing.T) {
 	t.Run("extract only the sub-object and return if the isSubObject is given 'true'", func(t *testing.T) {
 		parser := newParser(strings.NewReader("{a.b:1,c:2}"))
 		advanceScanner(t, parser, "b")
-		got, err := parser.extractObject(true)
+		got, err := parser.extractObject(true, "")
 		assertNoError(t, err)
 		assertDeepEqual(t, got, Object{"b": Int(1)})
 	})
@@ -458,7 +475,7 @@ func TestExtractObject(t *testing.T) {
 	t.Run("return the error if any error occurs while concatenating", func(t *testing.T) {
 		parser := newParser(strings.NewReader("a:b ${"))
 		parser.advance()
-		got, err := parser.extractObject()
+		got, err := parser.extractObject(false, "")
 		assertError(t, err, invalidSubstitutionError("missing closing parenthesis", 1, 7))
 		assertNil(t, got)
 	})
@@ -466,7 +483,7 @@ func TestExtractObject(t *testing.T) {
 	t.Run("should break the concatenation loop if the checkAndConcatenate method returns false", func(t *testing.T) {
 		parser := newParser(strings.NewReader("a:[1] bb, c:d"))
 		parser.advance()
-		got, err := parser.extractObject()
+		got, err := parser.extractObject(false, "")
 		assertError(t, err, missingCommaError(1, 7))
 		assertNil(t, got)
 	})
@@ -475,7 +492,7 @@ func TestExtractObject(t *testing.T) {
 		parser := newParser(strings.NewReader("a:bb cc dd"))
 		parser.advance()
 		expected := Object{"a": concatenation{String("bb"), String(" "), String("cc"), String(" "), String("dd")}}
-		got, err := parser.extractObject()
+		got, err := parser.extractObject(false, "")
 		assertNoError(t, err)
 		assertEquals(t, got.String(), expected.String())
 	})
@@ -484,7 +501,7 @@ func TestExtractObject(t *testing.T) {
 		parser := newParser(strings.NewReader("{a:1 b:2}"))
 		parser.advance()
 		expectedError := missingCommaError(1, 6)
-		got, err := parser.extractObject()
+		got, err := parser.extractObject(false, "")
 		assertError(t, err, expectedError)
 		assertNil(t, got)
 	})
@@ -492,7 +509,7 @@ func TestExtractObject(t *testing.T) {
 	t.Run("skip comma between the object elements", func(t *testing.T) {
 		parser := newParser(strings.NewReader("{a:1,b:2}"))
 		parser.advance()
-		got, err := parser.extractObject()
+		got, err := parser.extractObject(false, "")
 		assertNoError(t, err)
 		assertDeepEqual(t, got, Object{"a": Int(1), "b": Int(2)})
 	})
@@ -501,7 +518,7 @@ func TestExtractObject(t *testing.T) {
 		parser := newParser(strings.NewReader("{a:1,,b:2}"))
 		parser.advance()
 		expectedError := adjacentCommasError(1, 6)
-		got, err := parser.extractObject()
+		got, err := parser.extractObject(false, "")
 		assertError(t, err, expectedError)
 		assertNil(t, got)
 	})
@@ -510,7 +527,7 @@ func TestExtractObject(t *testing.T) {
 		parser := newParser(strings.NewReader("{a:1"))
 		parser.advance()
 		expectedError := invalidObjectError("parenthesis do not match", 1, 5)
-		got, err := parser.extractObject()
+		got, err := parser.extractObject(false, "")
 		assertError(t, err, expectedError)
 		assertNil(t, got)
 	})
@@ -706,7 +723,7 @@ func TestResolveSubstitutions(t *testing.T) {
 				optional: true,
 			},
 		}}
-		got, err := parser.extractObject()
+		got, err := parser.extractObject(false, "")
 		assertNoError(t, err)
 		if !reflect.DeepEqual(expected, got) {
 			t.Errorf("expected: %v, got: %v", expected, got)
@@ -722,7 +739,7 @@ func TestResolveSubstitutions(t *testing.T) {
 				optional: true,
 			},
 		}}
-		got, err := parser.extractObject()
+		got, err := parser.extractObject(false, "")
 		assertNoError(t, err)
 		if !reflect.DeepEqual(expected, got) {
 			t.Errorf("expected: %v, got: %v", expected, got)
