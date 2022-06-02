@@ -535,7 +535,7 @@ func (n Null) isConcatenable() bool { return true }
 type Duration time.Duration
 
 // Type Duration
-func (d Duration) Type() Type           { return StringType }
+func (d Duration) Type() Type           { return NumberType }
 func (d Duration) String() string       { return time.Duration(d).String() }
 func (d Duration) isConcatenable() bool { return false }
 

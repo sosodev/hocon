@@ -53,6 +53,11 @@ func TestParseResource(t *testing.T) {
 		assertEquals(t, sizes.Get("sizes.strange"), String("value"))
 	})
 
+	t.Run("parse duration-substitute.conf with no error", func(t *testing.T) {
+		_, err := ParseResource("testdata/duration-substitute.conf", true)
+		assertNoError(t, err)
+	})
+
 	t.Run("parse nested-objects.conf with correct line numbers for keys", func(t *testing.T) {
 		nestedObjectsConfig, err := ParseResource("testdata/nested-objects.conf", true)
 		assertNoError(t, err)
