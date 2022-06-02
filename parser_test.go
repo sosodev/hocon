@@ -68,6 +68,9 @@ func TestParseResource(t *testing.T) {
 		lineNo, ok = nestedObjectsConfig.LineNumberForKey("nested.yes.me")
 		assertEquals(t, ok, true)
 		assertEquals(t, lineNo, 9)
+
+		_, ok = nestedObjectsConfig.LineNumberForKey("not.a.real.key")
+		assertEquals(t, ok, false)
 	})
 }
 
