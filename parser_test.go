@@ -74,6 +74,10 @@ func TestParseResource(t *testing.T) {
 		assertEquals(t, ok, true)
 		assertEquals(t, lineNo, 9)
 
+		lineNo, ok = nestedObjectsConfig.LineNumberForKey("nested.clients.me.url")
+		assertEquals(t, ok, true)
+		assertEquals(t, lineNo, 14)
+
 		_, ok = nestedObjectsConfig.LineNumberForKey("not.a.real.key")
 		assertEquals(t, ok, false)
 	})
@@ -1072,7 +1076,7 @@ func TestExtractValue(t *testing.T) {
 			1`
 		parser := newParser(strings.NewReader(config))
 		advanceScanner(t, parser, "#")
-		got, err := parser.extractValue()
+		got, err := parser.extractValue(false, "")
 		assertNoError(t, err)
 		assertEquals(t, got, Int(1))
 	})
@@ -1080,7 +1084,7 @@ func TestExtractValue(t *testing.T) {
 	t.Run("extract int duration", func(t *testing.T) {
 		parser := newParser(strings.NewReader("a:1 second"))
 		advanceScanner(t, parser, "1")
-		got, err := parser.extractValue()
+		got, err := parser.extractValue(false, "")
 		assertNoError(t, err)
 		assertEquals(t, got, Duration(time.Second))
 	})
@@ -1088,7 +1092,7 @@ func TestExtractValue(t *testing.T) {
 	t.Run("extract int value", func(t *testing.T) {
 		parser := newParser(strings.NewReader("a:1"))
 		advanceScanner(t, parser, "1")
-		got, err := parser.extractValue()
+		got, err := parser.extractValue(false, "")
 		assertNoError(t, err)
 		assertEquals(t, got, Int(1))
 	})
@@ -1096,7 +1100,7 @@ func TestExtractValue(t *testing.T) {
 	t.Run("extract float value", func(t *testing.T) {
 		parser := newParser(strings.NewReader("a:1.5 seconds"))
 		advanceScanner(t, parser, "1.5")
-		got, err := parser.extractValue()
+		got, err := parser.extractValue(false, "")
 		assertNoError(t, err)
 		expected := 1.5
 		assertEquals(t, got, Duration(time.Duration(expected)*time.Second))
@@ -1105,7 +1109,7 @@ func TestExtractValue(t *testing.T) {
 	t.Run("extract float value", func(t *testing.T) {
 		parser := newParser(strings.NewReader("a:1.5"))
 		advanceScanner(t, parser, "1.5")
-		got, err := parser.extractValue()
+		got, err := parser.extractValue(false, "")
 		assertNoError(t, err)
 		assertEquals(t, got, Float64(1.5))
 	})
@@ -1121,7 +1125,7 @@ func TestExtractValue(t *testing.T) {
 			this is a
 			multi-line string
 		`)
-		got, err := parser.extractValue()
+		got, err := parser.extractValue(false, "")
 		assertNoError(t, err)
 		assertEquals(t, got, expected)
 	})
@@ -1129,7 +1133,7 @@ func TestExtractValue(t *testing.T) {
 	t.Run("extract string value", func(t *testing.T) {
 		parser := newParser(strings.NewReader(`a:"b"`))
 		advanceScanner(t, parser, `"b"`)
-		got, err := parser.extractValue()
+		got, err := parser.extractValue(false, "")
 		assertNoError(t, err)
 		assertEquals(t, got, String("b"))
 	})
@@ -1137,7 +1141,7 @@ func TestExtractValue(t *testing.T) {
 	t.Run("extract null value", func(t *testing.T) {
 		parser := newParser(strings.NewReader("a:null"))
 		advanceScanner(t, parser, "null")
-		got, err := parser.extractValue()
+		got, err := parser.extractValue(false, "")
 		assertNoError(t, err)
 		assertEquals(t, got, null)
 	})
@@ -1158,7 +1162,7 @@ func TestExtractValue(t *testing.T) {
 		t.Run(fmt.Sprintf("extract boolean value: %q", tc.input), func(t *testing.T) {
 			parser := newParser(strings.NewReader(fmt.Sprintf("a:%s", tc.input)))
 			advanceScanner(t, parser, tc.input)
-			got, err := parser.extractValue()
+			got, err := parser.extractValue(false, "")
 			assertNoError(t, err)
 			assertEquals(t, got, tc.expected)
 		})
@@ -1167,7 +1171,7 @@ func TestExtractValue(t *testing.T) {
 	t.Run("extract unquoted string value", func(t *testing.T) {
 		parser := newParser(strings.NewReader("a:bbb"))
 		advanceScanner(t, parser, "bbb")
-		got, err := parser.extractValue()
+		got, err := parser.extractValue(false, "")
 		assertNoError(t, err)
 		assertEquals(t, got, String("bbb"))
 	})
@@ -1175,7 +1179,7 @@ func TestExtractValue(t *testing.T) {
 	t.Run("extract object value", func(t *testing.T) {
 		parser := newParser(strings.NewReader("a:{b:1}"))
 		advanceScanner(t, parser, "{")
-		got, err := parser.extractValue()
+		got, err := parser.extractValue(false, "")
 		assertNoError(t, err)
 		assertDeepEqual(t, got, Object{"b": Int(1)})
 	})
@@ -1183,7 +1187,7 @@ func TestExtractValue(t *testing.T) {
 	t.Run("extract array value", func(t *testing.T) {
 		parser := newParser(strings.NewReader("a:[1]"))
 		advanceScanner(t, parser, "[")
-		got, err := parser.extractValue()
+		got, err := parser.extractValue(false, "")
 		assertNoError(t, err)
 		assertDeepEqual(t, got, Array{Int(1)})
 	})
@@ -1192,7 +1196,7 @@ func TestExtractValue(t *testing.T) {
 		parser := newParser(strings.NewReader("a:${b}"))
 		advanceScanner(t, parser, "$")
 		expected := &Substitution{"b", false}
-		got, err := parser.extractValue()
+		got, err := parser.extractValue(false, "")
 		assertNoError(t, err)
 		assertDeepEqual(t, got, expected)
 	})
@@ -1201,7 +1205,7 @@ func TestExtractValue(t *testing.T) {
 		parser := newParser(strings.NewReader("a:&"))
 		advanceScanner(t, parser, "&")
 		expectedError := invalidValueError(fmt.Sprintf("unknown value: %q", "&"), 1, 3)
-		got, err := parser.extractValue()
+		got, err := parser.extractValue(false, "")
 		assertError(t, err, expectedError)
 		assertNil(t, got)
 	})

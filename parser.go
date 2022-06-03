@@ -309,7 +309,7 @@ func (p *parser) extractObject(isSubObject bool, baseKey string) (Object, error)
 			p.advance()
 			lastRow = p.scanner.Line
 
-			value, err := p.extractValue()
+			value, err := p.extractValue(true, fullKey)
 			if err != nil {
 				return nil, err
 			}
@@ -429,7 +429,7 @@ func mergeObjects(existing Object, new Object) {
 func (p *parser) parsePlusEqualsValue(existingObject Object, key string) error {
 	existingValue, ok := existingObject[key]
 	if !ok {
-		value, err := p.extractValue()
+		value, err := p.extractValue(false, "")
 		if err != nil {
 			return err
 		}
@@ -439,7 +439,7 @@ func (p *parser) parsePlusEqualsValue(existingObject Object, key string) error {
 		if existingValue.Type() != ArrayType {
 			return invalidValueError(fmt.Sprintf("value: %q of the key: %q is not an array", existingValue.String(), key), p.scanner.Line, p.scanner.Pos().Column)
 		}
-		value, err := p.extractValue()
+		value, err := p.extractValue(false, "")
 		if err != nil {
 			return err
 		}
@@ -536,7 +536,7 @@ func (p *parser) checkAndConcatenate(object Object, key string) (bool, error) {
 	if lastValue, ok := object[key]; ok && lastValue.isConcatenable() && p.isTokenConcatenable(p.scanner.TokenText(), p.scanner.Peek()) {
 		lastConsumedWhitespaces := p.lastConsumedWhitespaces
 
-		value, err := p.extractValue()
+		value, err := p.extractValue(false, "")
 		if err != nil {
 			return false, err
 		}
@@ -578,7 +578,7 @@ func (p *parser) extractArray() (Array, error) {
 	for tok := p.scanner.Peek(); tok != scanner.EOF; tok = p.scanner.Peek() {
 		lastRow = p.scanner.Line
 
-		value, err := p.extractValue()
+		value, err := p.extractValue(false, "")
 		if err != nil {
 			return nil, err
 		}
@@ -616,7 +616,7 @@ func (p *parser) extractArray() (Array, error) {
 	return array, nil
 }
 
-func (p *parser) extractValue() (Value, error) {
+func (p *parser) extractValue(isSubObject bool, baseKey string) (Value, error) {
 	token := p.scanner.TokenText()
 	if token == commentToken {
 		p.consumeComment()
@@ -673,7 +673,7 @@ func (p *parser) extractValue() (Value, error) {
 	default:
 		switch {
 		case token == objectStartToken:
-			return p.extractObject(false, "")
+			return p.extractObject(isSubObject, baseKey)
 		case token == arrayStartToken:
 			return p.extractArray()
 		case isSubstitution(token, p.scanner.Peek()):
