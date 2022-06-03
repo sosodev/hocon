@@ -400,6 +400,12 @@ func TestGet(t *testing.T) {
 		got := config.Get("b")
 		assertNil(t, got)
 	})
+
+	t.Run("get missing key from unresolved substitution without panic", func(t *testing.T) {
+		ds, err := ParseResource("testdata/duration-substitute.conf", false)
+		assertNoError(t, err)
+		ds.Get("durations.maxTimeout.fakeKey")
+	})
 }
 
 func TestNewBooleanFromString(t *testing.T) {

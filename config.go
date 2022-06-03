@@ -398,7 +398,7 @@ func (o Object) find(path string) Value {
 
 	for _, key := range keysWithoutLast {
 		value, ok := object[key]
-		if !ok {
+		if !ok || value.Type() != ObjectType {
 			return nil
 		}
 
