@@ -81,6 +81,11 @@ func TestParseResource(t *testing.T) {
 		_, ok = nestedObjectsConfig.LineNumberForKey("not.a.real.key")
 		assertEquals(t, ok, false)
 	})
+
+	t.Run("parse comment-in-object.conf with no errors", func(t *testing.T) {
+		_, err := ParseResource("testdata/comment-in-object.conf", false)
+		assertNoError(t, err)
+	})
 }
 
 func TestParse(t *testing.T) {

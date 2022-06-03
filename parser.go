@@ -243,6 +243,11 @@ func (p *parser) extractObject(isSubObject bool, baseKey string) (Object, error)
 			p.consumeComment()
 		}
 
+		if p.scanner.TokenText() == objectEndToken {
+			p.advance()
+			return object, nil
+		}
+
 		if p.scanner.TokenText() == includeToken {
 			p.advance()
 
