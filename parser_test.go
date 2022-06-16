@@ -82,6 +82,18 @@ func TestParseResource(t *testing.T) {
 		assertEquals(t, ok, false)
 	})
 
+	t.Run("parse nulled-keys.conf with the correct CanInhert values", func(t *testing.T) {
+		config, err := ParseResource("testdata/nulled-keys.conf", true)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		assertEquals(t, config.CanInherit("inheritedObject"), true)
+		assertEquals(t, config.CanInherit("inheritedObject.nulledInnerObject.inheritable"), false)
+		assertEquals(t, config.CanInherit("object"), false)
+		assertEquals(t, config.CanInherit("object.someData"), false)
+	})
+
 	t.Run("parse comment-in-object.conf with no errors", func(t *testing.T) {
 		_, err := ParseResource("testdata/comment-in-object.conf", false)
 		assertNoError(t, err)

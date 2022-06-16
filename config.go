@@ -70,6 +70,23 @@ func (c *Config) LineNumberForKey(key string) (int, bool) {
 	return lineNumber, ok
 }
 
+// CanInherit returns true if the given key can inherit values during a merge
+// currently just checks if the key is, or is part of, an object that was previously set to null
+func (c *Config) CanInherit(key string) bool {
+	nonInheritableKeys := configNonInheritableKeys[c]
+
+	fullKey := ""
+	for _, subKey := range strings.Split(key, ".") {
+		fullKey += subKey
+		if nonInheritableKeys[fullKey] {
+			return false
+		}
+		fullKey += "."
+	}
+
+	return true
+}
+
 func iterate(thing Value, callback func(key string, value Value), prefix string) {
 	switch thing.Type() {
 	case ObjectType:

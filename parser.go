@@ -37,10 +37,12 @@ type parser struct {
 	lastConsumedWhitespaces string // used in concatenation not to lose whitespaces between values
 	resolveSubstitutions    bool
 	keyLineNumbers          map[string]int
+	nonInheritableKeys      map[string]bool
 }
 
 var (
-	configKeyLineNumbers = make(map[*Config]map[string]int)
+	configKeyLineNumbers     = make(map[*Config]map[string]int)
+	configNonInheritableKeys = make(map[*Config]map[string]bool)
 )
 
 func newParser(src io.Reader) *parser {
@@ -52,7 +54,7 @@ func newParser(src io.Reader) *parser {
 		return ch == '_' || ch == '-' || unicode.IsLetter(ch) || unicode.IsDigit(ch) && i > 0
 	}
 
-	return &parser{scanner: s, resolveSubstitutions: true, keyLineNumbers: make(map[string]int)}
+	return &parser{scanner: s, resolveSubstitutions: true, keyLineNumbers: make(map[string]int), nonInheritableKeys: make(map[string]bool)}
 }
 
 // ParseString function parses the given hocon string, creates the configuration tree and
@@ -110,6 +112,7 @@ func (p *parser) parse() (*Config, error) {
 
 	config := &Config{root: object}
 	configKeyLineNumbers[config] = p.keyLineNumbers
+	configNonInheritableKeys[config] = p.nonInheritableKeys
 	return config, nil
 }
 
@@ -341,6 +344,9 @@ func (p *parser) extractObject(isSubObject bool, baseKey string) (Object, error)
 			}
 
 			p.keyLineNumbers[fullKey] = lastRow
+			if value.Type() == NullType {
+				p.nonInheritableKeys[fullKey] = true
+			}
 			object[key] = value
 		case "+":
 			if p.scanner.Peek() == '=' {
